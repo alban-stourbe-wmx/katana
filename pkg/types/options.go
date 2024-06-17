@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/projectdiscovery/goflags"
 	"github.com/projectdiscovery/katana/pkg/output"
 	fileutil "github.com/projectdiscovery/utils/file"
@@ -100,6 +101,8 @@ type Options struct {
 	UseInstalledChrome bool
 	// ShowBrowser specifies whether the show the browser in headless mode
 	ShowBrowser bool
+	// LoadCookiesBrowser specifies a list of cookies to load in the browser.
+	LoadCookiesBrowser goflags.StringSlice
 	// HeadlessOptionalArguments specifies optional arguments to pass to Chrome
 	HeadlessOptionalArguments goflags.StringSlice
 	// HeadlessNoSandbox specifies if chrome should be start in --no-sandbox mode
@@ -187,6 +190,64 @@ func (options *Options) ParseHeadlessOptionalArguments() map[string]string {
 		}
 	}
 	return optionalArguments
+}
+
+func (options *Options) ParseLoadCookiesBrowser() []*proto.NetworkCookie {
+	var cookies []*proto.NetworkCookie
+	for _, v := range options.LoadCookiesBrowser {
+		cookie := &proto.NetworkCookie{}
+		parts := strings.Split(v, ";")
+		for i, part := range parts {
+			part := strings.TrimSpace(part)
+			if i == 0 {
+				// Get the first part as the cookie name and value
+				cookieParts := strings.SplitN(part, "=", 2)
+				if len(cookieParts) != 2 {
+					continue
+				}
+				cookie.Name = cookieParts[0]
+				cookie.Value = cookieParts[1]
+			} else {
+				attrParts := strings.SplitN(part, "=", 2)
+				switch strings.ToLower(attrParts[0]) {
+				case "domain":
+					if len(attrParts) == 2 {
+						cookie.Domain = attrParts[1]
+					}
+				case "expires":
+					if len(attrParts) == 2 {
+						expiry, err := time.Parse(time.RFC1123, attrParts[1])
+						if err != nil {
+							continue
+						}
+						cookie.Expires = proto.TimeSinceEpoch(expiry.Unix())
+					}
+				case "path":
+					if len(attrParts) == 2 {
+						cookie.Path = attrParts[1]
+					}
+				case "samesite":
+					if len(attrParts) == 2 {
+						switch strings.ToLower(attrParts[1]) {
+						case "lax":
+							cookie.SameSite = proto.NetworkCookieSameSiteLax
+						case "strict":
+							cookie.SameSite = proto.NetworkCookieSameSiteStrict
+						case "none":
+							cookie.SameSite = proto.NetworkCookieSameSiteNone
+						}
+					}
+				case "secure":
+					cookie.Secure = true
+				case "httponly":
+					cookie.HTTPOnly = true
+				}
+			}
+		}
+		cookies = append(cookies, cookie)
+	}
+
+	return cookies
 }
 
 func (options *Options) ShouldResume() bool {

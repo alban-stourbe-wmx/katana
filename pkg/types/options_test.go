@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/projectdiscovery/goflags"
 	"github.com/stretchr/testify/require"
 )
@@ -113,4 +114,120 @@ func TestParseHeadlessOptionalArguments(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestLoadCookiesBrowser(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []*proto.NetworkCookie
+	}{
+		{
+			name:  "Name value with domain",
+			input: "foo=bar; Domain=example.com\nbar=foo; Domain=bar.example.com",
+			want: []*proto.NetworkCookie{
+				{
+					Name:   "foo",
+					Value:  "bar",
+					Domain: "example.com",
+				},
+				{
+					Name:   "bar",
+					Value:  "foo",
+					Domain: "bar.example.com",
+				},
+			},
+		},
+		{
+			name:  "Name value with domain and expires",
+			input: "foo=bar; Domain=example.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT\nbar=foo; Domain=bar.example.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT",
+			want: []*proto.NetworkCookie{
+				{
+					Name:    "foo",
+					Value:   "bar",
+					Domain:  "example.com",
+					Expires: proto.TimeSinceEpoch(1445412480),
+				},
+				{
+					Name:    "bar",
+					Value:   "foo",
+					Domain:  "bar.example.com",
+					Expires: proto.TimeSinceEpoch(1445412480),
+				},
+			},
+		},
+		{
+			name:  "Name value with domain, expires, path, secure, httpOnly",
+			input: "foo=bar; Domain=example.com; Expires=Thu, 20 Jun 2024 14:46:26 GMT; Path=/; Secure; HttpOnly\nbar=foo; Domain=bar.example.com; Expires=Thu, 20 Jun 2024 14:46:26 GMT; Path=/",
+			want: []*proto.NetworkCookie{
+				{
+					Name:     "foo",
+					Value:    "bar",
+					Domain:   "example.com",
+					Expires:  proto.TimeSinceEpoch(1718894786),
+					Path:     "/",
+					Secure:   true,
+					HTTPOnly: true,
+				},
+				{
+					Name:     "bar",
+					Value:    "foo",
+					Domain:   "bar.example.com",
+					Expires:  proto.TimeSinceEpoch(1718894786),
+					Path:     "/",
+					Secure:   false,
+					HTTPOnly: false,
+				},
+			},
+		},
+		{
+			name:  "Name value with domain, expires, path, secure, httpOnly and SameSite",
+			input: "foo=bar; Domain=example.com; Expires=Thu, 20 Jun 2024 14:46:26 GMT; Path=/; Secure; HttpOnly; SameSite=None\nfoo=bar; Domain=example.com; Expires=Thu, 20 Jun 2024 14:46:26 GMT; Path=/; Secure; HttpOnly; SameSite=Strict\nfoo=bar; Domain=example.com; Expires=Thu, 20 Jun 2024 14:46:26 GMT; Path=/; Secure; HttpOnly; SameSite=Lax",
+			want: []*proto.NetworkCookie{
+				{
+					Name:     "foo",
+					Value:    "bar",
+					Domain:   "example.com",
+					Expires:  proto.TimeSinceEpoch(1718894786),
+					Path:     "/",
+					Secure:   true,
+					HTTPOnly: true,
+					SameSite: proto.NetworkCookieSameSiteNone,
+				},
+				{
+					Name:     "foo",
+					Value:    "bar",
+					Domain:   "example.com",
+					Expires:  proto.TimeSinceEpoch(1718894786),
+					Path:     "/",
+					Secure:   true,
+					HTTPOnly: true,
+					SameSite: proto.NetworkCookieSameSiteStrict,
+				},
+				{
+					Name:     "foo",
+					Value:    "bar",
+					Domain:   "example.com",
+					Expires:  proto.TimeSinceEpoch(1718894786),
+					Path:     "/",
+					Secure:   true,
+					HTTPOnly: true,
+					SameSite: proto.NetworkCookieSameSiteLax,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			strsl := goflags.StringSlice{}
+			for _, v := range strings.Split(tt.input, "\n") {
+				//nolint
+				strsl.Set(v)
+			}
+			opt := Options{LoadCookiesBrowser: strsl}
+			got := opt.ParseLoadCookiesBrowser()
+			require.Equal(t, tt.want, got)
+		})
+	}
+
 }

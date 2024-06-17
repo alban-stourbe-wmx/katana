@@ -82,6 +82,12 @@ func New(options *types.CrawlerOptions) (*Crawler, error) {
 		return nil, errorutil.NewWithErr(err).WithTag("hybrid")
 	}
 
+	// Load Cookies in the browser instance
+	cookies := options.Options.ParseLoadCookiesBrowser()
+	if len(cookies) > 0 && options.Options.Headless {
+		browser.MustSetCookies(cookies...)
+	}
+
 	crawler := &Crawler{
 		Shared:       shared,
 		browser:      browser,

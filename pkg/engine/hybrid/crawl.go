@@ -75,8 +75,9 @@ func (c *Crawler) navigateRequest(s *common.CrawlSession, request *navigation.Re
 		// Note: headers are originally sent using `c.addHeadersToPage` below changes are done so that
 		// headers are reflected in request dump
 		if httpreq != nil {
-			for k, v := range c.Headers {
-				httpreq.Header.Set(k, v)
+			// Custom Headers and Loaded cookies are already in the e Request Header
+			for k, v := range e.Request.Headers {
+				httpreq.Header.Set(k, v.String())
 			}
 		}
 
